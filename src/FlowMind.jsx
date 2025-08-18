@@ -260,7 +260,7 @@ const FlowMind = () => {
               setUser({ name: 'User', id: 1 });
               setCurrentView('dashboard');
             }}
-            className="w-full bg-slate-500 text-white py-3 rounded-xl font-medium hover:bg-slate-600 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
+            className="w-full bg-gradient-to-r from-slate-500 to-stone-400 text-white py-3 rounded-xl font-medium hover:scale-105 hover:shadow-lg transition-all"
           >
             Sign In
           </button>
@@ -332,7 +332,7 @@ const FlowMind = () => {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
       {/* 任务输入区 */}
       <div className="lg:col-span-2 space-y-6">
-        <div className="bg-white rounded-2xl p-6 border border-stone-200 shadow-sm">
+        <div className="bg-white/80 backdrop-blur-md rounded-3xl p-8 shadow-xl border border-stone-200">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-medium text-stone-800">✨ Add Tasks</h2>
             <Plus size={20} className="text-stone-400" />
@@ -348,7 +348,7 @@ Complete React learning 8.29
 Go out with Ella 8.19
 
 Or use line breaks, semicolons to separate tasks."
-              className="w-full h-32 px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400 transition-all resize-none text-stone-700 placeholder-stone-400"
+              className="w-full h-32 px-4 py-3 bg-stone-50/80 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400 transition-all resize-none text-stone-700 placeholder-stone-400 shadow-sm"
             />
             
             <div className="flex justify-between items-center">
@@ -367,7 +367,7 @@ Or use line breaks, semicolons to separate tasks."
         </div>
 
         {/* 任务列表 */}
-        <div className="bg-white rounded-2xl p-6 border border-stone-200 shadow-sm">
+        <div className="bg-white rounded-3xl p-6 border border-stone-200 shadow-xl">
           <h2 className="text-xl font-medium text-stone-800 mb-6">📋 Task List</h2>
           
           <div className="space-y-3">
@@ -508,7 +508,7 @@ Or use line breaks, semicolons to separate tasks."
   // 想法收集组件 - 简约风格
   const IdeaCollector = () => (
     <div className="max-w-4xl mx-auto">
-      <div className="bg-white rounded-2xl p-8 border border-stone-200 shadow-sm">
+      <div className="bg-white rounded-3xl p-8 border border-stone-200 shadow-sm">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-medium text-stone-800">💡 Idea Collector</h2>
           <Lightbulb size={20} className="text-stone-400" />
@@ -537,7 +537,7 @@ Or use line breaks, semicolons to separate tasks."
   // 草稿管理组件 - 简约风格
   const DraftManager = () => (
     <div className="max-w-4xl mx-auto">
-      <div className="bg-white rounded-2xl p-8 border border-stone-200 shadow-sm">
+      <div className="bg-white rounded-3xl p-8 border border-stone-200 shadow-sm">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-medium text-stone-800">📝 Draft Box</h2>
           <FileText size={20} className="text-stone-400" />

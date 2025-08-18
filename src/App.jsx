@@ -1,4 +1,3 @@
-import './App.css';
 import FlowMind from './FlowMind';
 
 function App() {

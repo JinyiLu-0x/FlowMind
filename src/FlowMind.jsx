@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Calendar, Plus, User, Brain, Clock, Tag, Trash2, Edit3, CheckCircle, Circle, Lightbulb, FileText, Settings, ChevronDown } from 'lucide-react';
 
 const FlowMind = () => {
@@ -8,9 +8,11 @@ const FlowMind = () => {
   const [ideas, setIdeas] = useState([]);
   const [drafts, setDrafts] = useState([]);
   const [currentView, setCurrentView] = useState('login');
-  const [taskInput, setTaskInput] = useState('');
-  const [ideaInput, setIdeaInput] = useState('');
   const [selectedDate, setSelectedDate] = useState('');
+  const usernameRef = useRef(null);
+  const passwordRef = useRef(null);
+  const taskInputRef = useRef(null);
+  const ideaInputRef = useRef(null);
 
   // 任务标签 - 莫兰迪色系
   const taskTags = [
@@ -203,22 +205,23 @@ const FlowMind = () => {
 
   // 添加任务
   const addTasks = () => {
-    if (!taskInput.trim()) return;
-    
-    const newTasks = parseTaskInput(taskInput);
+    const raw = taskInputRef.current ? taskInputRef.current.value : '';
+    if (!raw.trim()) return;
+    const newTasks = parseTaskInput(raw);
     if (newTasks.length > 0) {
       setTasks(prevTasks => [...prevTasks, ...newTasks]);
-      setTaskInput('');
+      if (taskInputRef.current) taskInputRef.current.value = '';
     }
   };
 
   // 添加想法到草稿
   const addIdea = () => {
-    if (!ideaInput.trim()) return;
+    const raw = ideaInputRef.current ? ideaInputRef.current.value : '';
+    if (!raw.trim()) return;
     
     const newDraft = {
       id: Date.now(),
-      content: ideaInput,
+      content: raw,
       createdAt: new Date(),
       type: 'idea'
     };
@@ -226,10 +229,10 @@ const FlowMind = () => {
     setDrafts(prevDrafts => [...prevDrafts, newDraft]);
     setIdeas(prevIdeas => [...prevIdeas, {
       id: Date.now(),
-      text: ideaInput,
+      text: raw,
       processed: true
     }]);
-    setIdeaInput('');
+    if (ideaInputRef.current) ideaInputRef.current.value = '';
   };
 
   // 登录组件 - 莫兰迪色系
@@ -248,16 +251,21 @@ const FlowMind = () => {
           <input
             type="text"
             placeholder="Username"
+            ref={usernameRef}
+            autoComplete="username"
             className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400 transition-all text-stone-700"
           />
           <input
             type="password"
             placeholder="Password"
+            ref={passwordRef}
+            autoComplete="current-password"
             className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400 transition-all text-stone-700"
           />
           <button
             onClick={() => {
-              setUser({ name: 'User', id: 1 });
+              const name = usernameRef.current ? usernameRef.current.value : '';
+              setUser({ name: name || 'User', id: 1 });
               setCurrentView('dashboard');
             }}
             className="w-full bg-gradient-to-r from-slate-500 to-stone-400 text-white py-3 rounded-xl font-medium hover:scale-105 hover:shadow-lg transition-all"
@@ -340,8 +348,7 @@ const FlowMind = () => {
           
           <div className="space-y-4">
             <textarea
-              value={taskInput}
-              onChange={(e) => setTaskInput(e.target.value)}
+              ref={taskInputRef}
               placeholder="Enter tasks (supports smart parsing):
 Complete IFB240 study 8.30
 Complete React learning 8.29
@@ -516,8 +523,7 @@ Or use line breaks, semicolons to separate tasks."
         
         <div className="space-y-6">
           <textarea
-            value={ideaInput}
-            onChange={(e) => setIdeaInput(e.target.value)}
+            ref={ideaInputRef}
             placeholder="Capture your thoughts, ideas, or random inspirations..."
             className="w-full h-32 px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400 transition-all resize-none text-stone-700 placeholder-stone-400"
           />

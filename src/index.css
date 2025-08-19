@@ -2,34 +2,73 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Morandi palette variables + simple utility classes */
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --m-bg: #efeee9;
+  --m-surface: #eeeae6;
+  --m-card: #f6f4f2;
+  --m-accent: #8c9aa4;
+  --m-accent-2: #bfa9a2;
+  --m-muted: #7d7b77;
+  --m-foreground: #2f3230;
+  --m-border: rgba(47,50,49,0.06);
 }
 
-/* 保证 html / body 全高并移除干扰布局的 flex 设置 */
-html, body, #root {
-  height: 100%;
-}
-body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
-  /* 不再使用 display:flex/place-items:center，这会让页面内容不铺满宽度 */
-  display: block;
-  background: transparent; /* 由应用组件控制背景色 */
+.dark {
+  --m-bg: #0f1112;
+  --m-surface: #0b0d0e;
+  --m-card: #0b1012;
+  --m-accent: #8c9aa4;
+  --m-accent-2: #8f7a76;
+  --m-muted: #9aa0a2;
+  --m-foreground: #e8eef0;
+  --m-border: rgba(255,255,255,0.04);
 }
 
+/* NOTE: removed backdrop-filter on card/surface to avoid IME candidate being hidden on macOS/Chrome */
+.bg-morandi { background-color: var(--m-bg) !important; }
+.surface-morandi {
+  background-color: rgba(255,255,255,0.06);
+  color: var(--m-foreground);
+  border-color: var(--m-border);
+  /* backdrop-filter removed */
+}
+.card-morandi {
+  background-color: rgba(255,255,255,0.92);
+  color: var(--m-foreground);
+  border-color: var(--m-border);
+  /* backdrop-filter removed */
+  box-shadow: 0 6px 18px rgba(15,23,42,0.06);
+}
+
+/* dark overrides keep translucency but without backdrop-filter */
+.dark .card-morandi {
+  background-color: rgba(11,16,22,0.72);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+}
+.dark .surface-morandi {
+  background-color: rgba(11,16,22,0.55);
+}
+
+/* Ensure inputs/textareas inside cards do not inherit any transform/backdrop-like side-effects */
+.card-morandi input,
+.card-morandi textarea,
+.surface-morandi input,
+.surface-morandi textarea {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  transform: none !important;
+}
+
+/* small helpers */
+.btn-morandi { background-color: var(--m-accent); color: white; }
+.tag-morandi { background-color: rgba(0,0,0,0.03); color: var(--m-muted); border-color: var(--m-border); }
+
+/* ensure full-bleed background controlled by app */
+html, body, #root { height: 100%; background: transparent; }
+body { margin: 0; }
+
+/* typography and links */
 a {
   font-weight: 500;
   color: #646cff;
@@ -44,6 +83,7 @@ h1 {
   line-height: 1.1;
 }
 
+/* buttons */
 button {
   border-radius: 8px;
   border: 1px solid transparent;

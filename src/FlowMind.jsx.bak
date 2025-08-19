@@ -8,15 +8,17 @@ const FlowMind = () => {
   const [ideas, setIdeas] = useState([]);
   const [smartEntries, setSmartEntries] = useState([]); // 智能条目存储
   const [connections, setConnections] = useState([]); // 知识连接
+  const [drafts, setDrafts] = useState([]); // 未直接转为任务的想法草稿
   const [currentView, setCurrentView] = useState('login');
   const [selectedDate, setSelectedDate] = useState('');
   const [expandedTask, setExpandedTask] = useState(null);
+  const [isComposing, setIsComposing] = useState(false);
   const usernameRef = useRef(null);
   const passwordRef = useRef(null);
   const taskInputRef = useRef(null);
   const ideaInputRef = useRef(null);
 
-  // 任务标签 - 恢复 emoji（保留原配色 class）
+  // 任务标签 - 莫兰迪色系（保留 emoji/名称）
   const taskTags = [
     { id: 'personal', name: '🏠 Personal', color: 'text-slate-600', bg: 'bg-slate-100' },
     { id: 'work', name: '💼 Work', color: 'text-stone-600', bg: 'bg-stone-100' },
@@ -224,46 +226,53 @@ const FlowMind = () => {
     return connections;
   };
 
-  // 添加智能条目
+  // 添加智能条目（改为：尝试转为 task，否则放到 drafts）
   const addSmartEntry = () => {
     const input = ideaInputRef.current?.value;
     if (!input?.trim()) return;
 
     const parsed = parseSmartInput(input);
+    console.log('[Debug] addSmartEntry input=', input, 'parsed=', parsed);
     if (!parsed) return;
 
-    // 检查是否是对现有任务的补充
-    const existingTask = findExistingTask(parsed);
-    
-    if (existingTask) {
-      // 更新现有任务
-      setSmartEntries(prev => prev.map(entry => 
-        entry.id === existingTask.id 
-          ? {
-              ...entry,
-              details: [...entry.details, {
-                id: Date.now(),
-                text: parsed.originalText,
-                addedAt: new Date()
-              }],
-              keywords: [...new Set([...entry.keywords, ...parsed.keywords])],
-              entities: mergeEntities(entry.entities, parsed.entities),
-              lastUpdated: new Date()
-            }
-          : entry
-      ));
+    // 判定规则：只有有截止日期 / 非 uncategorized 类别 / 高优先级 才直接成为 task
+    // （移除基于 keywords 的自动转任务判断，避免过度触发）
+    const shouldCreateTask = Boolean(
+      parsed.dueDate ||
+      (parsed.category && parsed.category !== 'uncategorized') ||
+      parsed.priority === 'high'
+    );
+
+    console.log('[Debug] shouldCreateTask=', shouldCreateTask);
+
+    if (shouldCreateTask) {
+      // 从 parsed 生成 task，并加入 tasks
+      const newTask = {
+        id: Date.now() + Math.random(),
+        text: parsed.cleanText || parsed.originalText,
+        dueDate: parsed.dueDate || null,
+        category: parsed.category || 'uncategorized',
+        priority: parsed.priority || 'low',
+        completed: false,
+        createdAt: new Date()
+      };
+      setTasks(prev => [...prev, newTask]);
+
+      // 同时把 parsed 保留到 smartEntries（用于知识提取/连接）
+      setSmartEntries(prev => {
+        const next = [...prev, parsed];
+        // 计算并合并新连接
+        const newConnections = findConnections(parsed);
+        setConnections(cPrev => [...cPrev, ...newConnections]);
+        return next;
+      });
     } else {
-      // 创建新任务
-      setSmartEntries(prev => [...prev, parsed]);
-      
-      // 寻找关联
-      const newConnections = findConnections(parsed);
-      setConnections(prev => [...prev, ...newConnections]);
+      // 放到 drafts（最新放最前面，便于查看）
+      setDrafts(prev => [parsed, ...prev]);
     }
 
-    if (ideaInputRef.current) {
-      ideaInputRef.current.value = '';
-    }
+    // 清空输入
+    if (ideaInputRef.current) ideaInputRef.current.value = '';
   };
 
   // 查找现有任务
@@ -472,24 +481,17 @@ const FlowMind = () => {
     }
   };
 
-  // 通用卡片样式组件，便于统一美化（保留原配色）
-  const Card = ({ children, className = '' }) => (
-    <div className={`bg-white/90 dark:bg-[#0b1220]/80 border border-stone-200 dark:border-stone-700 rounded-2xl p-6 shadow-md ${className}`}>
-      {children}
-    </div>
-  );
-
-  // 登录组件 - 去掉过重渐变，保持简洁配色与一致间距
+  // 登录组件 - 去掉渐变，改为纯色背景并自适应
   const LoginView = () => (
-    <div className="min-h-screen flex items-center justify-center p-6 bg-stone-50 dark:bg-[#071026] transition-colors">
+    <div className="min-h-screen w-full flex items-center justify-center p-6 bg-stone-50 dark:bg-slate-900 transition-colors">
       <div className="w-full max-w-md">
-        <Card className="p-8">
+        <Card className="p-8 bg-white dark:bg-[#071026]">
           <div className="text-center mb-6">
-            <div className="w-16 h-16 bg-slate-600 rounded-xl flex items-center justify-center mx-auto mb-4">
+            <div className="w-16 h-16 bg-slate-500 rounded-xl flex items-center justify-center mx-auto mb-4">
               <Brain className="text-white" size={28} />
             </div>
             <h1 className="text-2xl font-semibold text-stone-800 dark:text-stone-100">FlowMind</h1>
-            <p className="text-sm text-stone-500 dark:text-stone-300 mt-1">Intelligent Task & Knowledge Manager</p>
+            <p className="text-sm text-stone-500 dark:text-stone-300 mt-1">Intelligent Task Management</p>
           </div>
 
           <div className="space-y-4">
@@ -522,8 +524,8 @@ const FlowMind = () => {
       </div>
     </div>
   );
-
-  // 导航按钮组件（视觉小幅优化）
+  
+  // 导航按钮组件（保持不变）
   const NavButton = ({ children, active, onClick }) => (
     <button
       onClick={onClick}
@@ -537,282 +539,561 @@ const FlowMind = () => {
     </button>
   );
 
-  // 任务管理组件 - 轻微布局优化（保留配色）
+  // 任务管理组件 - 使用纯色容器并保证自适应与铺满宽度
   const TaskManager = () => (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      <div className="lg:col-span-2 space-y-6">
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center space-x-3">
-              <h2 className="text-lg font-semibold text-stone-800 dark:text-stone-100">Add Tasks</h2>
+    <div className="w-full">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* 主列 */}
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-white rounded-3xl p-8 shadow-xl border border-stone-200 dark:bg-[#071026] dark:border-stone-700 w-full">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-medium text-stone-800 dark:text-stone-100">✨ Add Tasks</h2>
+              <Plus size={20} className="text-stone-400" />
             </div>
-            <Plus size={18} className="text-stone-400" />
-          </div>
-
-          <textarea
-            ref={taskInputRef}
-            placeholder="Enter tasks — supports smart parsing (date formats, line breaks, semicolons)..."
-            className="w-full h-32 px-4 py-3 bg-stone-50/80 dark:bg-transparent border border-stone-200 dark:border-stone-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-400 transition-all resize-none text-stone-700 dark:text-stone-100 placeholder-stone-400"
-          />
-
-          <div className="flex items-center justify-between mt-4">
-            <div className="text-xs text-stone-500 dark:text-stone-300">Supports natural language date parsing</div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={addTasks}
-                className="inline-flex items-center gap-2 bg-slate-600 text-white px-4 py-2 rounded-xl hover:bg-slate-700 transition"
-              >
-                <Brain size={14} />
-                <span className="text-sm">AI Parse</span>
-              </button>
+            
+            <div className="space-y-4">
+              <textarea
+                ref={taskInputRef}
+                placeholder="Enter tasks (supports smart parsing)"
+                className="w-full h-32 px-4 py-3 bg-stone-50/80 dark:bg-transparent border border-stone-200 dark:border-stone-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-400 transition-all resize-none text-stone-700 dark:text-stone-100 placeholder-stone-400 shadow-sm"
+              />
+              
+              <div className="flex justify-between items-center">
+                <div className="text-xs text-stone-500 dark:text-stone-300">
+                  Supports: description + date (e.g., 8.30 or Aug 30)
+                </div>
+                <button
+                  onClick={addTasks}
+                  className="bg-slate-500 text-white px-6 py-2.5 rounded-xl hover:bg-slate-600 transition-all text-sm font-medium flex items-center space-x-2 transform hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  <Brain size={16} />
+                  <span>🤖 AI Parse</span>
+                </button>
+              </div>
             </div>
           </div>
-        </Card>
 
-        <Card className="p-4">
-          <h3 className="text-lg font-medium text-stone-800 dark:text-stone-100 mb-4">Task List</h3>
-          <div className="space-y-3">
-            {tasks.map(task => (
-              <TaskItem key={task.id} task={task} />
-            ))}
-
-            {tasks.length === 0 && (
-              <div className="text-center py-12 text-stone-400 dark:text-stone-300">
-                <Clock size={32} className="mx-auto mb-3 opacity-60" />
-                <p className="text-sm">No tasks. Add your first task to see suggestions.</p>
-              </div>
-            )}
-          </div>
-        </Card>
-      </div>
-
-      {/* 侧栏 */}
-      <div className="space-y-6">
-        <div className="bg-gradient-to-b from-slate-600 to-slate-700 text-white rounded-2xl p-6">
-          <h4 className="text-md font-semibold mb-3">AI Suggestions</h4>
-          <div className="space-y-3">
-            {generateScheduleSuggestion().map((task, idx) => (
-              <div key={task.id} className="bg-white/10 p-3 rounded-lg">
-                <div className="text-xs opacity-80 mb-1">Priority #{idx + 1}</div>
-                <div className="font-medium text-sm">{task.text}</div>
-                {task.dueDate && <div className="text-xs opacity-80 mt-1">{task.dueDate.toLocaleDateString()}</div>}
-              </div>
-            ))}
-
-            {generateScheduleSuggestion().length === 0 && (
-              <div className="text-center py-6 opacity-80">
-                <p className="text-sm">No tasks to prioritize</p>
-              </div>
-            )}
+          <div className="bg-white rounded-3xl p-6 border border-stone-200 shadow-xl dark:bg-[#071026] dark:border-stone-700 w-full">
+            <h2 className="text-xl font-medium text-stone-800 dark:text-stone-100 mb-6">📋 Task List</h2>
+            
+            <div className="space-y-3">
+              {tasks.map(task => (
+                <TaskItem key={task.id} task={task} />
+              ))}
+              
+              {tasks.length === 0 && (
+                <div className="text-center py-12 text-stone-400 dark:text-stone-300">
+                  <Clock size={32} className="mx-auto mb-4 opacity-50" />
+                  <p className="text-sm">No tasks yet. Add your first task!</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        <Card>
-          <h4 className="text-md font-semibold text-stone-800 dark:text-stone-100 mb-3">Task Distribution</h4>
-          <div className="space-y-2">
-            {taskTags.map(tag => {
-              const count = tasks.filter(task => task.category === tag.id).length;
-              return (
-                <div key={tag.id} className="flex items-center justify-between">
-                  <span className="text-sm text-stone-600 dark:text-stone-300">{tag.name}</span>
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${tag.bg} ${tag.color}`}>{count}</span>
+        {/* 侧栏 */}
+        <div className="space-y-6">
+          <div className="bg-slate-500 rounded-2xl p-6 text-white w-full">
+            <h3 className="text-lg font-medium mb-4 flex items-center">
+              <Brain className="mr-2" size={20} />
+              🎯 AI Suggestions
+            </h3>
+            
+            <div className="space-y-3">
+              {generateScheduleSuggestion().map((task, index) => (
+                <div key={task.id} className="bg-white/20 rounded-xl p-3 border border-white/10">
+                  <div className="text-xs opacity-75 mb-1">Priority #{index + 1}</div>
+                  <div className="font-medium text-sm">{task.text}</div>
+                  {task.dueDate && (
+                    <div className="text-xs opacity-75 mt-1 flex items-center">
+                      <Calendar size={10} className="mr-1" />
+                      {task.dueDate.toLocaleDateString()}
+                    </div>
+                  )}
                 </div>
-              );
-            })}
+              ))}
+              
+              {generateScheduleSuggestion().length === 0 && (
+                <div className="text-center py-6 opacity-75">
+                  <p className="text-sm">No tasks to prioritize</p>
+                </div>
+              )}
+            </div>
           </div>
-        </Card>
+
+          <div className="bg-white rounded-2xl p-6 border border-stone-200 shadow-sm dark:bg-[#071026] dark:border-stone-700 w-full">
+            <h3 className="text-lg font-medium text-stone-800 mb-4">📊 Task Distribution</h3>
+            <div className="space-y-3">
+              {taskTags.map(tag => {
+                const count = tasks.filter(task => task.category === tag.id).length;
+                return (
+                  <div key={tag.id} className="flex items-center justify-between">
+                    <span className="text-sm text-stone-600 dark:text-stone-300">{tag.name}</span>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${tag.bg} ${tag.color}`}>
+                      {count}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
-
-  // 任务项组件 - 保留行为与样式
+  
+  // 任务项组件 - 简约风格
   const TaskItem = ({ task }) => {
     const tag = taskTags.find(t => t.id === task.category);
     const priorityStyles = {
-      high: 'ring-1 ring-red-200 bg-red-50',
-      medium: 'ring-1 ring-yellow-100 bg-yellow-50',
-      low: 'ring-1 ring-stone-50 bg-white'
+      high: 'border-stone-300 bg-stone-50',
+      medium: 'border-stone-200 bg-white',
+      low: 'border-stone-200 bg-white'
     };
 
     return (
-      <div className={`p-4 rounded-xl flex items-start justify-between ${priorityStyles[task.priority]}`}>
-        <div className="flex items-start gap-3 min-w-0">
-          <button
-            onClick={() => {
-              setTasks(prevTasks => prevTasks.map(t => t.id === task.id ? { ...t, completed: !t.completed } : t));
-            }}
-            className="mt-1"
-            aria-label="toggle-complete"
-          >
-            {task.completed ? <CheckCircle size={18} className="text-stone-500" /> : <Circle size={18} className="text-stone-400" />}
-          </button>
+      <div className={`border rounded-xl p-4 transition-all hover:shadow-sm ${priorityStyles[task.priority]}`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3 flex-1">
+            <button
+              onClick={() => {
+                setTasks(prevTasks => prevTasks.map(t =>
+                  t.id === task.id ? { ...t, completed: !t.completed } : t
+                ));
+              }}
+              className="hover:scale-110 transition-transform"
+            >
+              {task.completed ?
+                <CheckCircle className="text-stone-500" size={18} /> :
+                <Circle className="text-stone-400" size={18} />
+              }
+            </button>
 
-          <div className="min-w-0">
-            <div className={`text-sm font-medium ${task.completed ? 'line-through text-stone-400' : 'text-stone-800 dark:text-stone-100'}`}>
-              {task.text}
-            </div>
-            <div className="flex items-center gap-3 mt-2 text-xs text-stone-500 dark:text-stone-300">
-              {tag && <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${tag.bg} ${tag.color}`}>{tag.name}</span>}
-              {task.dueDate && <span className="flex items-center gap-1"><Calendar size={12} />{task.dueDate.toLocaleDateString()}</span>}
+            <div className="flex-1 min-w-0">
+              <div className={`font-medium text-stone-800 ${task.completed ? 'line-through text-stone-500' : ''}`}>
+                {task.text}
+              </div>
+              
+              <div className="flex items-center space-x-3 mt-2">
+                {tag && (
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${tag.bg} ${tag.color}`}>
+                    {tag.name}
+                  </span>
+                )}
+                
+                {task.dueDate && (
+                  <span className="text-xs text-stone-500 flex items-center space-x-1">
+                    <Calendar size={10} />
+                    <span>{task.dueDate.toLocaleDateString()}</span>
+                  </span>
+                )}
+                
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                  task.priority === 'high' ? 'bg-stone-200 text-stone-700' :
+                  task.priority === 'medium' ? 'bg-neutral-100 text-neutral-600' :
+                  'bg-gray-100 text-gray-600'
+                }`}>
+                  {task.priority === 'high' ? 'High' :
+                   task.priority === 'medium' ? 'Medium' : 'Low'}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button onClick={() => setTasks(prev => prev.filter(t => t.id !== task.id))} className="text-stone-400 hover:text-stone-600">
-            <Trash2 size={16} />
+          
+          <button
+            onClick={() => setTasks(prevTasks => prevTasks.filter(t => t.id !== task.id))}
+            className="text-stone-400 hover:text-stone-600 transition-colors hover:scale-110"
+          >
+            <Trash2 size={14} />
           </button>
         </div>
       </div>
     );
   };
 
-  // 智能想法收集器 - 精简视觉与响应式
-  const IdeaCollector = () => (
-    <div className="max-w-6xl mx-auto">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-stone-800 dark:text-stone-100">Smart Ideas</h3>
-              <Lightbulb size={18} className="text-stone-400 dark:text-stone-300" />
-            </div>
+  // 智能想法收集器组件 - 修复后无残留 diff 标记
+  const IdeaCollector = () => {
+    // 将 draft 转为 task
+    const promoteDraftToTask = (draft) => {
+      const newTask = {
+        id: Date.now() + Math.random(),
+        text: draft.cleanText || draft.originalText,
+        dueDate: draft.dueDate || null,
+        category: draft.category || 'uncategorized',
+        priority: draft.priority || 'low',
+        completed: false,
+        createdAt: new Date()
+      };
+      setTasks(prev => [...prev, newTask]);
 
-            <textarea
-              ref={ideaInputRef}
-              placeholder="Quickly jot ideas — AI will extract tasks, dates, people, and relationships."
-              className="w-full h-40 px-4 py-3 bg-stone-50/80 dark:bg-transparent border border-stone-200 dark:border-stone-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-400 transition-all resize-none text-stone-700 dark:text-stone-100"
-            />
+      // 保留到 smartEntries 并计算连接
+      setSmartEntries(prev => {
+        const next = [...prev, draft];
+        const newConnections = findConnections(draft);
+        setConnections(cPrev => [...cPrev, ...newConnections]);
+        return next;
+      });
 
-            <div className="flex items-center justify-between mt-4">
-              <div className="text-xs text-stone-500 dark:text-stone-300">Natural language input supported</div>
-              <button onClick={addSmartEntry} className="inline-flex items-center gap-2 bg-gradient-to-r from-slate-600 to-stone-500 text-white px-4 py-2 rounded-xl">
-                <Brain size={14} /> Parse
-              </button>
-            </div>
-          </Card>
+      // 从 drafts 中移除
+      setDrafts(prev => prev.filter(d => d.id !== draft.id));
+    };
 
-          <Card>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-stone-800 dark:text-stone-100">Smart Tasks</h3>
-              <div className="text-sm text-stone-500 dark:text-stone-300">{smartEntries.length}</div>
-            </div>
+    const removeDraft = (id) => {
+      setDrafts(prev => prev.filter(d => d.id !== id));
+    };
 
-            <div className="space-y-3">
-              {smartEntries.map(entry => (
-                <SmartTaskItem
-                  key={entry.id}
-                  entry={entry}
-                  isExpanded={expandedTask === entry.id}
-                  onToggleExpand={() => setExpandedTask(expandedTask === entry.id ? null : entry.id)}
+    return (
+      <div className="max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* 输入区 */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="card-morandi backdrop-blur-md rounded-3xl p-8 border">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <Brain size={20} className="text-[var(--m-accent)]" />
+                  <h2 className="text-xl font-medium" style={{color: 'var(--m-foreground)'}}>智能思考助手</h2>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <textarea
+                  ref={ideaInputRef}
+                  placeholder="随口说一句话就行：例如“学习React 9.1”"
+                  className="w-full h-40 px-4 py-3 bg-stone-50/80 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-400 transition-all resize-none text-stone-700 placeholder-stone-400 text-sm leading-relaxed"
                 />
-              ))}
 
-              {smartEntries.length === 0 && (
-                <div className="text-center py-12 text-stone-400 dark:text-stone-300">
-                  <p className="text-sm">No smart entries yet — try adding one.</p>
-                </div>
-              )}
-            </div>
-          </Card>
-        </div>
-
-        <div className="space-y-6">
-          <Card>
-            <h4 className="text-md font-semibold text-stone-800 dark:text-stone-100 mb-3">Knowledge Links</h4>
-            <div className="space-y-3 max-h-80 overflow-y-auto">
-              {connections.map(conn => {
-                const from = smartEntries.find(e => e.id === conn.from);
-                const to = smartEntries.find(e => e.id === conn.to);
-                return (
-                  <div key={conn.id} className="p-3 rounded-lg bg-stone-50 dark:bg-transparent border border-stone-100 dark:border-stone-700">
-                    <div className="text-xs text-stone-500">{conn.type === 'strong' ? 'Strong' : 'Weak'}</div>
-                    <div className="font-medium text-sm mt-1">{from?.cleanText?.slice(0, 40)} → {to?.cleanText?.slice(0, 40)}</div>
+                <div className="flex justify-between items-center">
+                  <div className="text-xs text-stone-500 space-y-1">
+                    <div>✨ 支持自然语言输入</div>
+                    <div>🔗 自动建立知识连接</div>
+                    <div>📅 智能提取时间和优先级</div>
                   </div>
-                );
-              })}
-
-              {connections.length === 0 && <div className="text-center text-sm text-stone-400 dark:text-stone-300 py-6">Connections will appear here</div>}
-            </div>
-          </Card>
-
-          <Card>
-            <h4 className="text-md font-semibold text-stone-800 dark:text-stone-100 mb-3">Skills</h4>
-            <div className="space-y-2">
-              {[...new Set(smartEntries.flatMap(entry => entry.entities.tools || []))].map(skill => (
-                <div key={skill} className="flex items-center justify-between">
-                  <span className="text-sm text-stone-700 dark:text-stone-200">{skill}</span>
-                  <span className="text-xs px-2 py-0.5 bg-stone-100 dark:bg-stone-800 rounded-full">{smartEntries.filter(e => (e.entities.tools || []).includes(skill)).length}</span>
+                  <button
+                    onClick={addSmartEntry}
+                    className="btn-morandi px-8 py-3 rounded-xl hover:scale-105 hover:shadow-lg transition-all text-sm font-medium flex items-center space-x-2"
+                  >
+                    <Brain size={16} />
+                    <span>🤖 智能解析</span>
+                  </button>
                 </div>
-              ))}
-              {smartEntries.flatMap(e => e.entities.tools || []).length === 0 && <div className="text-sm text-stone-400 dark:text-stone-300 py-4">No skills detected yet</div>}
+              </div>
             </div>
-          </Card>
+
+            {/* 智能任务列表 */}
+            <div className="card-morandi rounded-3xl p-6 border shadow-xl">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-medium" style={{color: 'var(--m-foreground)'}}>📋 智能任务</h2>
+                <div className="text-xs text-stone-500">
+                  {smartEntries.length} 个智能条目
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                {smartEntries.map(entry => (
+                  <SmartTaskItem
+                    key={entry.id}
+                    entry={entry}
+                    isExpanded={expandedTask === entry.id}
+                    onToggleExpand={() => setExpandedTask(expandedTask === entry.id ? null : entry.id)}
+                  />
+                ))}
+                
+                {smartEntries.length === 0 && (
+                  <div className="text-center py-12" style={{color: 'var(--m-muted)'}}>
+                    <Brain size={32} className="mx-auto mb-4 opacity-60" />
+                    <p className="text-sm">还没有智能任务，开始输入第一个想法吧！</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* 右侧：Knowledge / Drafts / Skills */}
+          <div className="space-y-6">
+            <div className="surface-morandi rounded-2xl p-6 text-white/90">
+              <h3 className="text-lg font-medium mb-4 flex items-center">
+                <Lightbulb className="mr-2" size={20} />
+                知识连接
+              </h3>
+
+              <div className="space-y-3 max-h-56 overflow-y-auto">
+                {connections.map(connection => {
+                  const fromEntry = smartEntries.find(e => e.id === connection.from);
+                  const toEntry = smartEntries.find(e => e.id === connection.to);
+                  return (
+                    <div key={connection.id} className="bg-white/20 rounded-xl p-3 border border-white/10">
+                      <div className="text-xs opacity-75 mb-1">
+                        {connection.type === 'strong' ? '🔥 强关联' : '💡 弱关联'}
+                      </div>
+                      <div className="text-sm font-medium mb-2">
+                        {fromEntry?.cleanText.slice(0, 20)}...
+                        <br />↓
+                        <br />{toEntry?.cleanText.slice(0, 20)}...
+                      </div>
+                      <div className="text-xs opacity-75">
+                        {connection.reasons.slice(0, 2).join(' • ')}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {connections.length === 0 && (
+                  <div className="text-center py-6 opacity-75">
+                    <p className="text-sm">添加更多任务后会自动发现连接</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Drafts 面板 */}
+            <div className="bg-white rounded-2xl p-6 border border-stone-200 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-stone-800">🗂️ Drafts</h3>
+                <div className="text-xs text-stone-500">{drafts.length}</div>
+              </div>
+
+              <div className="space-y-3 max-h-60 overflow-y-auto">
+                {drafts.map(d => (
+                  <div key={d.id} className="flex items-start justify-between p-3 rounded-lg border border-stone-100">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-stone-800 truncate">{d.cleanText}</div>
+                      <div className="text-xs text-stone-500 mt-1">
+                        {d.category} · {d.priority}{d.dueDate ? ` · ${d.dueDate.toLocaleDateString()}` : ''}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 ml-4">
+                      <button
+                        onClick={() => promoteDraftToTask(d)}
+                        className="text-sm bg-slate-600 text-white px-3 py-1 rounded-md hover:opacity-90"
+                      >
+                        Promote
+                      </button>
+                      <button
+                        onClick={() => removeDraft(d.id)}
+                        className="text-sm text-stone-500 px-2 py-1 rounded-md hover:text-stone-700"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {drafts.length === 0 && (
+                  <div className="text-center py-6 text-stone-400">
+                    <p className="text-sm">没有草稿</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 技能树 */}
+            <div className="bg-white rounded-2xl p-6 border border-stone-200 shadow-sm">
+              <h3 className="text-lg font-medium text-stone-800 mb-4">🌟 技能发现</h3>
+              <div className="space-y-3">
+                {[...new Set(smartEntries.flatMap(entry => entry.entities.tools || []))].map(skill => (
+                  <div key={skill} className="flex items-center justify-between">
+                    <span className="text-sm text-stone-700">{skill}</span>
+                    <span className="text-xs px-2 py-1 bg-stone-100 text-stone-600 rounded-full">
+                      {smartEntries.filter(entry => (entry.entities.tools || []).includes(skill)).length}
+                    </span>
+                  </div>
+                ))}
+
+                {smartEntries.flatMap(entry => entry.entities.tools || []).length === 0 && (
+                  <div className="text-center py-6 text-stone-400">
+                    <p className="text-sm">添加包含技能的任务后会自动识别</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
-  // 智能任务项组件 - 细节增强（保留行为）
+  // 智能任务项组件
   const SmartTaskItem = ({ entry, isExpanded, onToggleExpand }) => {
     const tag = taskTags.find(t => t.id === entry.category);
     const now = new Date();
+    
+    // 计算倒计时
     const getDaysUntilDue = () => {
       if (!entry.dueDate) return null;
       const diffTime = entry.dueDate - now;
-      return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays;
     };
+
     const daysLeft = getDaysUntilDue();
+    
+    const priorityStyles = {
+      high: 'border-stone-300 bg-stone-50',
+      medium: 'border-stone-200 bg-white',
+      low: 'border-stone-200 bg-white'
+    };
 
     return (
-      <div className="border rounded-xl p-4 bg-white/70 dark:bg-transparent border-stone-100 dark:border-stone-700">
-        <div className="flex items-start justify-between">
-          <div className="min-w-0">
-            <div className="flex items-center gap-3">
-              <div className="text-sm font-medium text-stone-800 dark:text-stone-100 min-w-0 truncate">{entry.cleanText}</div>
-              {tag && <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${tag.bg} ${tag.color}`}>{tag.name}</span>}
-            </div>
-            <div className="mt-2 text-xs text-stone-500 dark:text-stone-300 flex items-center gap-3">
-              {entry.dueDate && <span className="flex items-center gap-1"><Calendar size={12} />{entry.dueDate.toLocaleDateString()}</span>}
-              <span className="px-2 py-0.5 rounded-full bg-stone-100 dark:bg-stone-800 text-xs">{entry.priority}</span>
+      <div className={`border rounded-xl p-4 transition-all hover:shadow-sm ${priorityStyles[entry.priority]}`}>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center space-x-3 flex-1">
+            <button
+              onClick={() => {
+                setSmartEntries(prev => prev.map(e => 
+                  e.id === entry.id ? { ...e, completed: !e.completed } : e
+                ));
+              }}
+              className="hover:scale-110 transition-transform"
+            >
+              {entry.completed ? 
+                <CheckCircle className="text-stone-500" size={18} /> :
+                <Circle className="text-stone-400" size={18} />
+              }
+            </button>
+            
+            <div className="flex-1 min-w-0">
+              <div className={`font-medium text-stone-800 ${entry.completed ? 'line-through text-stone-500' : ''}`}>
+                {entry.cleanText}
+              </div>
+              
+              <div className="flex items-center space-x-3 mt-2 flex-wrap">
+                {tag && (
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${tag.bg} ${tag.color}`}>
+                    {tag.name}
+                  </span>
+                )}
+                
+                {entry.dueDate && (
+                  <span className={`text-xs flex items-center space-x-1 px-2 py-0.5 rounded-full ${
+                    daysLeft !== null && daysLeft <= 0 ? 'bg-red-100 text-red-600' :
+                    daysLeft !== null && daysLeft <= 2 ? 'bg-orange-100 text-orange-600' :
+                    'text-stone-500'
+                  }`}>
+                    <Calendar size={10} />
+                    <span>{entry.dueDate.toLocaleDateString()}</span>
+                    {daysLeft !== null && (
+                      <span className="font-medium">
+                        {daysLeft === 0 ? '今天' : 
+                         daysLeft < 0 ? `逾期${Math.abs(daysLeft)}天` :
+                         `还有${daysLeft}天`}
+                      </span>
+                    )}
+                  </span>
+                )}
+                
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                  entry.priority === 'high' ? 'bg-stone-200 text-stone-700' :
+                  entry.priority === 'medium' ? 'bg-neutral-100 text-neutral-600' :
+                  'bg-gray-100 text-gray-600'
+                }`}>
+                  {entry.priority === 'high' ? '高优先级' :
+                   entry.priority === 'medium' ? '中优先级' : '低优先级'}
+                </span>
+
+                {entry.details.length > 0 && (
+                  <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-600 rounded-full font-medium">
+                    {entry.details.length} 条补充
+                  </span>
+                )}
+              </div>
             </div>
           </div>
-
-          <div className="flex items-center gap-2">
-            <button onClick={onToggleExpand} className="text-stone-400 hover:text-stone-600">
-              <ChevronDown size={16} className={`${isExpanded ? 'rotate-180' : ''} transition-transform`} />
+          
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={onToggleExpand}
+              className="text-stone-400 hover:text-stone-600 transition-colors hover:scale-110"
+            >
+              <ChevronDown 
+                size={16} 
+                className={`transform transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+              />
             </button>
-            <button onClick={() => setSmartEntries(prev => prev.filter(e => e.id !== entry.id))} className="text-stone-400 hover:text-stone-600">
-              <Trash2 size={16} />
+            <button
+              onClick={() => setSmartEntries(prev => prev.filter(e => e.id !== entry.id))}
+              className="text-stone-400 hover:text-stone-600 transition-colors hover:scale-110"
+            >
+              <Trash2 size={14} />
             </button>
           </div>
         </div>
 
+        {/* 展开的详细信息 */}
         {isExpanded && (
-          <div className="mt-4 border-t border-stone-100 dark:border-stone-700 pt-4 space-y-3 text-sm text-stone-700 dark:text-stone-200">
-            {entry.keywords?.length > 0 && (
+          <div className="border-t border-stone-200 pt-4 mt-4 space-y-4">
+            {/* 关键词 */}
+            {entry.keywords.length > 0 && (
               <div>
-                <div className="text-xs font-medium text-stone-600 dark:text-stone-300 mb-2">Keywords</div>
-                <div className="flex flex-wrap gap-2">
-                  {entry.keywords.map((k, i) => <span key={i} className="px-2 py-1 bg-stone-100 dark:bg-stone-800 rounded-md text-xs">{k}</span>)}
+                <div className="text-xs font-medium text-stone-600 mb-2">🏷️ 关键词</div>
+                <div className="flex flex-wrap gap-1">
+                  {entry.keywords.map((keyword, idx) => (
+                    <span key={idx} className="text-xs px-2 py-1 bg-stone-100 text-stone-600 rounded-md">
+                      {keyword}
+                    </span>
+                  ))}
                 </div>
               </div>
             )}
 
-            {Object.entries(entry.entities || {}).map(([type, items]) => items.length > 0 && (
-              <div key={type}>
-                <div className="text-xs font-medium text-stone-600 dark:text-stone-300 mb-2">{type}</div>
-                <div className="flex flex-wrap gap-2">
-                  {items.map((it, i) => <span key={i} className="px-2 py-1 bg-slate-100 dark:bg-transparent rounded-md text-xs">{it}</span>)}
+            {/* 实体信息 */}
+            {Object.entries(entry.entities).map(([type, items]) => 
+              items.length > 0 && (
+                <div key={type}>
+                  <div className="text-xs font-medium text-stone-600 mb-2">
+                    {type === 'people' ? '👥 相关人员' :
+                     type === 'places' ? '📍 地点' :
+                     type === 'skills' ? '🎯 技能' :
+                     type === 'tools' ? '🛠️ 工具技术' : '💡 概念'}
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {items.map((item, idx) => (
+                      <span key={idx} className="text-xs px-2 py-1 bg-slate-100 text-slate-600 rounded-md">
+                        {item}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )
+            )}
+
+            {/* 补充详情 */}
+            {entry.details.length > 0 && (
+              <div>
+                <div className="text-xs font-medium text-stone-600 mb-2">📝 补充详情</div>
+                <div className="space-y-2">
+                  {entry.details.map(detail => (
+                    <div key={detail.id} className="bg-stone-50 rounded-lg p-3">
+                      <div className="text-sm text-stone-700">{detail.text}</div>
+                      <div className="text-xs text-stone-500 mt-1">
+                        {detail.addedAt.toLocaleString()}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
+            )}
 
-            {entry.details?.length > 0 && (
+            {/* 连接的任务 */}
+            {connections.filter(c => c.from === entry.id || c.to === entry.id).length > 0 && (
               <div>
-                <div className="text-xs font-medium text-stone-600 dark:text-stone-300 mb-2">Details</div>
+                <div className="text-xs font-medium text-stone-600 mb-2">🔗 相关任务</div>
                 <div className="space-y-2">
-                  {entry.details.map(d => <div key={d.id} className="bg-stone-50 dark:bg-transparent rounded-md p-2 text-xs">{d.text}</div>)}
+                  {connections
+                    .filter(c => c.from === entry.id || c.to === entry.id)
+                    .map(connection => {
+                      const relatedId = connection.from === entry.id ? connection.to : connection.from;
+                      const relatedEntry = smartEntries.find(e => e.id === relatedId);
+                      return (
+                        <div key={connection.id} className="bg-blue-50 rounded-lg p-2 border border-blue-100">
+                          <div className="text-sm text-blue-800">{relatedEntry?.cleanText}</div>
+                          <div className="text-xs text-blue-600 mt-1">
+                            {connection.reasons.join(' • ')}
+                          </div>
+                        </div>
+                      );
+                    })
+                  }
                 </div>
               </div>
             )}
@@ -822,37 +1103,59 @@ const FlowMind = () => {
     );
   };
 
-  // 主渲染
+  // 自动根据系统主题偏好加/删 `dark` class，帮助 Tailwind dark: 类生效
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+    const apply = (e) => {
+      if (e.matches) document.documentElement.classList.add('dark');
+      else document.documentElement.classList.remove('dark');
+    };
+    // 初始应用
+    if (mq) apply(mq);
+    // 监听变化
+    mq && mq.addEventListener && mq.addEventListener('change', apply);
+    return () => mq && mq.removeEventListener && mq.removeEventListener('change', apply);
+  }, []);
+
+  // 通用卡片组件：改为使用 morandi 样式类（不改结构）
+  const Card = ({ children, className = '' }) => (
+    <div className={`card-morandi border rounded-2xl p-6 shadow-md ${className}`}>
+      {children}
+    </div>
+  );
+  
+  // 主渲染：外层保持全页纯色背景并自适应
   return (
-    <div className="min-h-screen transition-colors">
+    <div className="min-h-screen w-full bg-morandi flex flex-col">
       {!user ? <LoginView /> : (
-        <div className="min-h-screen bg-stone-50 dark:bg-[#071026] transition-colors">
-          {/* 导航 */}
-          <nav className="bg-white/80 dark:bg-transparent border-b border-stone-200 dark:border-stone-700 sticky top-0 z-40 backdrop-blur-sm">
+        <div className="flex-1 flex flex-col">
+          {/* 导航：使用 surface 背景以和页面一致 */}
+          <nav className="surface-morandi border-b border-transparent sticky top-0 z-40">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <div className="flex items-center justify-between h-16">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-slate-600 flex items-center justify-center">
+                  <div className="w-9 h-9 rounded-lg" style={{backgroundColor: 'var(--m-accent)', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
                     <Brain size={18} className="text-white" />
                   </div>
-                  <div className="text-lg font-semibold text-stone-800 dark:text-stone-100">FlowMind</div>
+                  <div className="text-lg font-semibold" style={{color: 'var(--m-foreground)'}}>FlowMind</div>
                 </div>
 
                 <div className="flex items-center gap-3">
                   <NavButton active={currentView === 'dashboard'} onClick={() => setCurrentView('dashboard')}>Tasks</NavButton>
                   <NavButton active={currentView === 'ideas'} onClick={() => setCurrentView('ideas')}>Smart Ideas</NavButton>
                   <div className="ml-4 flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-stone-800 flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-full surface-morandi flex items-center justify-center">
                       <User size={14} />
                     </div>
-                    <div className="text-sm font-medium text-stone-700 dark:text-stone-200">{user?.name}</div>
+                    <div className="text-sm font-medium" style={{color: 'var(--m-foreground)'}}>{user?.name}</div>
                   </div>
                 </div>
               </div>
             </div>
           </nav>
 
-          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             {currentView === 'dashboard' && <TaskManager />}
             {currentView === 'ideas' && <IdeaCollector />}
           </main>

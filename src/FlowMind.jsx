@@ -1,6 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Calendar, Plus, User, Brain, Clock, Tag, Trash2, Edit3, CheckCircle, Circle, Lightbulb, FileText, Settings, ChevronDown } from 'lucide-react';
 
+// 在文件顶部（组件外或组件内最上方）添加统一的 emoji 配置，便于全局替换
+const LOGO_PATH = '/logo.png'; // 你可改为 '🪄' / '⚡️' / '🌿' 等更好看的 emoji
+const TAG_EMOJI_CHOICES = {
+  personal: '🏠',
+  work: '💼',
+  study: '📚',
+  entertainment: '🎮',
+  health: '🏃',
+  other: '🔖'
+};
+
 const FlowMind = () => {
   // 状态管理
   const [user, setUser] = useState(null);
@@ -19,12 +30,12 @@ const FlowMind = () => {
 
   // 任务标签 - 莫兰迪色系（保留 emoji/名称）
   const taskTags = [
-    { id: 'personal', name: '🏠 Personal', color: 'text-slate-600', bg: 'bg-slate-100' },
-    { id: 'work', name: '💼 Work', color: 'text-stone-600', bg: 'bg-stone-100' },
-    { id: 'study', name: '📚 Study', color: 'text-neutral-600', bg: 'bg-neutral-100' },
-    { id: 'entertainment', name: '🎮 Entertainment', color: 'text-zinc-600', bg: 'bg-zinc-100' },
-    { id: 'health', name: '🏃 Health', color: 'text-gray-600', bg: 'bg-gray-100' },
-    { id: 'uncategorized', name: '🔖 Other', color: 'text-slate-500', bg: 'bg-slate-50' }
+    { id: 'personal', name: `${TAG_EMOJI_CHOICES.personal} Personal`, color: 'text-slate-600', bg: 'bg-slate-100' },
+    { id: 'work', name: `${TAG_EMOJI_CHOICES.work} Work`, color: 'text-stone-600', bg: 'bg-stone-100' },
+    { id: 'study', name: `${TAG_EMOJI_CHOICES.study} Study`, color: 'text-neutral-600', bg: 'bg-neutral-100' },
+    { id: 'entertainment', name: `${TAG_EMOJI_CHOICES.entertainment} Entertainment`, color: 'text-zinc-600', bg: 'bg-zinc-100' },
+    { id: 'health', name: `${TAG_EMOJI_CHOICES.health} Health`, color: 'text-gray-600', bg: 'bg-gray-100' },
+    { id: 'uncategorized', name: `${TAG_EMOJI_CHOICES.other} Other`, color: 'text-slate-500', bg: 'bg-slate-50' }
   ];
 
   // 智能解析输入内容
@@ -486,8 +497,8 @@ const FlowMind = () => {
       <div className="w-full max-w-md">
         <Card className="p-8 bg-white dark:bg-[#071026]">
           <div className="text-center mb-6">
-            <div className="w-16 h-16 bg-slate-500 rounded-xl flex items-center justify-center mx-auto mb-4">
-              <Brain className="text-white" size={28} />
+            <div className="w-16 h-16 bg-white border border-gray-200 rounded-xl flex items-center justify-center mx-auto mb-4">
+              <img src={LOGO_PATH} alt="FlowMind Logo" className="w-12 h-12" />
             </div>
             <h1 className="text-2xl font-semibold text-stone-800 dark:text-stone-100">FlowMind</h1>
             <p className="text-sm text-stone-500 dark:text-stone-300 mt-1">Intelligent Task Management</p>
@@ -565,7 +576,6 @@ const FlowMind = () => {
                   onClick={addTasks}
                   className="bg-slate-500 text-white px-6 py-2.5 rounded-xl hover:bg-slate-600 transition-all text-sm font-medium flex items-center space-x-2 transform hover:scale-[1.02] active:scale-[0.98]"
                 >
-                  <Brain size={16} />
                   <span>🤖 AI Parse</span>
                 </button>
               </div>
@@ -594,7 +604,6 @@ const FlowMind = () => {
         <div className="space-y-6">
           <div className="bg-slate-500 rounded-2xl p-6 text-white w-full">
             <h3 className="text-lg font-medium mb-4 flex items-center">
-              <Brain className="mr-2" size={20} />
               🎯 AI Suggestions
             </h3>
             
@@ -710,7 +719,7 @@ const FlowMind = () => {
     );
   };
 
-  // 智能想法收集器组件 - 增加 Drafts 面板（可转为 Task / 删除）
+  // 智能想法收集器组件 - 已清理，移除残留 diff 标记
   const IdeaCollector = () => {
     // 将 draft 转为 task
     const promoteDraftToTask = (draft) => {
@@ -746,10 +755,11 @@ const FlowMind = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* 输入区 */}
           <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white/90 backdrop-blur-md rounded-3xl p-8 shadow-xl border border-stone-200">
+            <div className="card-morandi rounded-3xl p-8 border">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-medium text-stone-800">🧠 智能思考助手</h2>
-                <Brain size={20} className="text-stone-400" />
+                <div className="flex items-center gap-3">
+                  <h2 className="text-xl font-medium" style={{color: 'var(--m-fore)'}}>智能思考助手</h2>
+                </div>
               </div>
 
               <div className="space-y-4">
@@ -767,9 +777,8 @@ const FlowMind = () => {
                   </div>
                   <button
                     onClick={addSmartEntry}
-                    className="bg-slate-500 text-white px-8 py-3 rounded-xl hover:scale-105 hover:shadow-lg transition-all text-sm font-medium flex items-center space-x-2"
+                    className="btn-morandi px-8 py-3 rounded-xl hover:scale-105 hover:shadow-lg transition-all text-sm font-medium flex items-center space-x-2"
                   >
-                    <Brain size={16} />
                     <span>🤖 智能解析</span>
                   </button>
                 </div>
@@ -777,9 +786,9 @@ const FlowMind = () => {
             </div>
 
             {/* 智能任务列表 */}
-            <div className="bg-white rounded-3xl p-6 border border-stone-200 shadow-xl">
+            <div className="card-morandi rounded-3xl p-6 border shadow-xl">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-medium text-stone-800 mb-4">📋 智能任务</h2>
+                <h2 className="text-xl font-medium" style={{color: 'var(--m-fore)'}}>📋 智能任务</h2>
                 <div className="text-xs text-stone-500">
                   {smartEntries.length} 个智能条目
                 </div>
@@ -796,8 +805,8 @@ const FlowMind = () => {
                 ))}
                 
                 {smartEntries.length === 0 && (
-                  <div className="text-center py-12 text-stone-400">
-                    <Brain size={32} className="mx-auto mb-4 opacity-50" />
+                  <div className="text-center py-12" style={{color: 'var(--m-muted)'}}>
+                    <Lightbulb size={32} className="mx-auto mb-4 opacity-60" />
                     <p className="text-sm">还没有智能任务，开始输入第一个想法吧！</p>
                   </div>
                 )}
@@ -807,12 +816,10 @@ const FlowMind = () => {
 
           {/* 右侧：Knowledge / Drafts / Skills */}
           <div className="space-y-6">
-            <div className="bg-slate-500 rounded-2xl p-6 text-white">
+            <div className="bg-slate-500 rounded-2xl p-6 text-white w-full">
               <h3 className="text-lg font-medium mb-4 flex items-center">
-                <Lightbulb className="mr-2" size={20} />
-                🔗 知识连接
+                🔗 想法链接
               </h3>
-
               <div className="space-y-3 max-h-56 overflow-y-auto">
                 {connections.map(connection => {
                   const fromEntry = smartEntries.find(e => e.id === connection.from);
@@ -833,7 +840,7 @@ const FlowMind = () => {
                     </div>
                   );
                 })}
-
+                
                 {connections.length === 0 && (
                   <div className="text-center py-6 opacity-75">
                     <p className="text-sm">添加更多任务后会自动发现连接</p>
@@ -1127,25 +1134,30 @@ const FlowMind = () => {
     <div className="min-h-screen w-full bg-stone-50 dark:bg-slate-900 transition-colors flex flex-col">
       {!user ? <LoginView /> : (
         <div className="flex-1 flex flex-col">
-          {/* 导航：和页面同色，透明边框，避免白色条带（全屏拉大时背景一致） */}
-          <nav className="bg-stone-50 dark:bg-slate-900 border-b border-transparent sticky top-0 z-40">
+          {/* 导航：整条导航栏为玻璃质感（整条都是 card-morandi + glass-hover） */}
+          <nav className="card-morandi glass-hover surface-morandi w-full border-b border-transparent sticky top-0 z-40">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <div className="flex items-center justify-between h-16">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-slate-600 flex items-center justify-center">
-                    <Brain size={18} className="text-white" />
+                  <div className="flex items-center gap-3" style={{paddingLeft: 6}}>
+                    <div className="w-9 h-9 rounded-md flex items-center justify-center" style={{background: 'transparent'}}>
+                      <img src={LOGO_PATH} alt="FlowMind Logo" className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="text-lg font-semibold" style={{color: 'var(--m-fore)'}}>FlowMind</div>
+                      <div style={{fontSize: 11, color: 'var(--m-muted)', lineHeight: 1}}>Tasks · Ideas · Links</div>
+                    </div>
                   </div>
-                  <div className="text-lg font-semibold text-stone-800 dark:text-stone-100">FlowMind</div>
                 </div>
 
                 <div className="flex items-center gap-3">
                   <NavButton active={currentView === 'dashboard'} onClick={() => setCurrentView('dashboard')}>Tasks</NavButton>
                   <NavButton active={currentView === 'ideas'} onClick={() => setCurrentView('ideas')}>Smart Ideas</NavButton>
                   <div className="ml-4 flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-stone-100 dark:bg-stone-800 flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-full surface-morandi flex items-center justify-center">
                       <User size={14} />
                     </div>
-                    <div className="text-sm font-medium text-stone-700 dark:text-stone-200">{user?.name}</div>
+                    <div className="text-sm font-medium" style={{color: 'var(--m-fore)'}}>{user?.name}</div>
                   </div>
                 </div>
               </div>

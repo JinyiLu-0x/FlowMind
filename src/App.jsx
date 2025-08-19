@@ -1,8 +1,6 @@
+import React from 'react';
 import FlowMind from './FlowMind';
 
-function App() {
+export default function App() {
   return <FlowMind />;
 }
-
-export default App;
-

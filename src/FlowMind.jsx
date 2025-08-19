@@ -8,6 +8,7 @@ const FlowMind = () => {
   const [ideas, setIdeas] = useState([]);
   const [smartEntries, setSmartEntries] = useState([]); // 智能条目存储
   const [connections, setConnections] = useState([]); // 知识连接
+  const [drafts, setDrafts] = useState([]); // 未直接转为任务的想法草稿
   const [currentView, setCurrentView] = useState('login');
   const [selectedDate, setSelectedDate] = useState('');
   const [expandedTask, setExpandedTask] = useState(null);
@@ -224,46 +225,53 @@ const FlowMind = () => {
     return connections;
   };
 
-  // 添加智能条目
+  // 添加智能条目（改为：尝试转为 task，否则放到 drafts）
   const addSmartEntry = () => {
     const input = ideaInputRef.current?.value;
     if (!input?.trim()) return;
 
     const parsed = parseSmartInput(input);
+    console.log('[Debug] addSmartEntry input=', input, 'parsed=', parsed);
     if (!parsed) return;
 
-    // 检查是否是对现有任务的补充
-    const existingTask = findExistingTask(parsed);
-    
-    if (existingTask) {
-      // 更新现有任务
-      setSmartEntries(prev => prev.map(entry => 
-        entry.id === existingTask.id 
-          ? {
-              ...entry,
-              details: [...entry.details, {
-                id: Date.now(),
-                text: parsed.originalText,
-                addedAt: new Date()
-              }],
-              keywords: [...new Set([...entry.keywords, ...parsed.keywords])],
-              entities: mergeEntities(entry.entities, parsed.entities),
-              lastUpdated: new Date()
-            }
-          : entry
-      ));
+    // 判定规则：只有有截止日期 / 非 uncategorized 类别 / 高优先级 才直接成为 task
+    // （移除基于 keywords 的自动转任务判断，避免过度触发）
+    const shouldCreateTask = Boolean(
+      parsed.dueDate ||
+      (parsed.category && parsed.category !== 'uncategorized') ||
+      parsed.priority === 'high'
+    );
+
+    console.log('[Debug] shouldCreateTask=', shouldCreateTask);
+
+    if (shouldCreateTask) {
+      // 从 parsed 生成 task，并加入 tasks
+      const newTask = {
+        id: Date.now() + Math.random(),
+        text: parsed.cleanText || parsed.originalText,
+        dueDate: parsed.dueDate || null,
+        category: parsed.category || 'uncategorized',
+        priority: parsed.priority || 'low',
+        completed: false,
+        createdAt: new Date()
+      };
+      setTasks(prev => [...prev, newTask]);
+
+      // 同时把 parsed 保留到 smartEntries（用于知识提取/连接）
+      setSmartEntries(prev => {
+        const next = [...prev, parsed];
+        // 计算并合并新连接
+        const newConnections = findConnections(parsed);
+        setConnections(cPrev => [...cPrev, ...newConnections]);
+        return next;
+      });
     } else {
-      // 创建新任务
-      setSmartEntries(prev => [...prev, parsed]);
-      
-      // 寻找关联
-      const newConnections = findConnections(parsed);
-      setConnections(prev => [...prev, ...newConnections]);
+      // 放到 drafts（最新放最前面，便于查看）
+      setDrafts(prev => [parsed, ...prev]);
     }
 
-    if (ideaInputRef.current) {
-      ideaInputRef.current.value = '';
-    }
+    // 清空输入
+    if (ideaInputRef.current) ideaInputRef.current.value = '';
   };
 
   // 查找现有任务
@@ -702,141 +710,205 @@ const FlowMind = () => {
     );
   };
 
-  // 智能想法收集器组件 - 重新设计
-  const IdeaCollector = () => (
-    <div className="max-w-6xl mx-auto">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* 输入区 */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white/90 backdrop-blur-md rounded-3xl p-8 shadow-xl border border-stone-200">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-medium text-stone-800">🧠 智能思考助手</h2>
-              <Brain size={20} className="text-stone-400" />
-            </div>
-            
-            <div className="space-y-4">
-              <textarea
-                ref={ideaInputRef}
-                placeholder="随口说一句话就行：
-• 参加会议 9.1
-• 学习Python编程 下周
-• 和张三讨论项目在会议室B
-• 完成Cyber Security课程作业
+  // 智能想法收集器组件 - 增加 Drafts 面板（可转为 Task / 删除）
+  const IdeaCollector = () => {
+    // 将 draft 转为 task
+    const promoteDraftToTask = (draft) => {
+      const newTask = {
+        id: Date.now() + Math.random(),
+        text: draft.cleanText || draft.originalText,
+        dueDate: draft.dueDate || null,
+        category: draft.category || 'uncategorized',
+        priority: draft.priority || 'low',
+        completed: false,
+        createdAt: new Date()
+      };
+      setTasks(prev => [...prev, newTask]);
 
-AI会自动识别任务类型、时间、地点、人员，并建立知识连接..."
-                className="w-full h-40 px-4 py-3 bg-stone-50/80 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400 transition-all resize-none text-stone-700 placeholder-stone-400 text-sm leading-relaxed"
-              />
-              
-              <div className="flex justify-between items-center">
-                <div className="text-xs text-stone-500 space-y-1">
-                  <div>✨ 支持自然语言输入</div>
-                  <div>🔗 自动建立知识连接</div>
-                  <div>📅 智能提取时间和优先级</div>
-                </div>
-                <button
-                  onClick={addSmartEntry}
-                  className="bg-gradient-to-r from-slate-500 to-stone-400 text-white px-8 py-3 rounded-xl hover:scale-105 hover:shadow-lg transition-all text-sm font-medium flex items-center space-x-2"
-                >
-                  <Brain size={16} />
-                  <span>🤖 智能解析</span>
-                </button>
-              </div>
-            </div>
-          </div>
+      // 保留到 smartEntries 并计算连接
+      setSmartEntries(prev => {
+        const next = [...prev, draft];
+        const newConnections = findConnections(draft);
+        setConnections(cPrev => [...cPrev, ...newConnections]);
+        return next;
+      });
 
-          {/* 智能任务列表 */}
-          <div className="bg-white rounded-3xl p-6 border border-stone-200 shadow-xl">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-medium text-stone-800 mb-4">📋 智能任务</h2>
-              <div className="text-xs text-stone-500">
-                {smartEntries.length} 个智能条目
+      // 从 drafts 中移除
+      setDrafts(prev => prev.filter(d => d.id !== draft.id));
+    };
+
+    const removeDraft = (id) => {
+      setDrafts(prev => prev.filter(d => d.id !== id));
+    };
+
+    return (
+      <div className="max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* 输入区 */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="bg-white/90 backdrop-blur-md rounded-3xl p-8 shadow-xl border border-stone-200">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-medium text-stone-800">🧠 智能思考助手</h2>
+                <Brain size={20} className="text-stone-400" />
               </div>
-            </div>
-            
-            <div className="space-y-4">
-              {smartEntries.map(entry => (
-                <SmartTaskItem 
-                  key={entry.id} 
-                  entry={entry} 
-                  isExpanded={expandedTask === entry.id}
-                  onToggleExpand={() => setExpandedTask(
-                    expandedTask === entry.id ? null : entry.id
-                  )}
+
+              <div className="space-y-4">
+                <textarea
+                  ref={ideaInputRef}
+                  placeholder="随口说一句话就行：例如“学习React 9.1”"
+                  className="w-full h-40 px-4 py-3 bg-stone-50/80 border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-400 transition-all resize-none text-stone-700 placeholder-stone-400 text-sm leading-relaxed"
                 />
-              ))}
-              
-              {smartEntries.length === 0 && (
-                <div className="text-center py-12 text-stone-400">
-                  <Brain size={32} className="mx-auto mb-4 opacity-50" />
-                  <p className="text-sm">还没有智能任务，开始输入第一个想法吧！</p>
+
+                <div className="flex justify-between items-center">
+                  <div className="text-xs text-stone-500 space-y-1">
+                    <div>✨ 支持自然语言输入</div>
+                    <div>🔗 自动建立知识连接</div>
+                    <div>📅 智能提取时间和优先级</div>
+                  </div>
+                  <button
+                    onClick={addSmartEntry}
+                    className="bg-slate-500 text-white px-8 py-3 rounded-xl hover:scale-105 hover:shadow-lg transition-all text-sm font-medium flex items-center space-x-2"
+                  >
+                    <Brain size={16} />
+                    <span>🤖 智能解析</span>
+                  </button>
                 </div>
-              )}
+              </div>
+            </div>
+
+            {/* 智能任务列表 */}
+            <div className="bg-white rounded-3xl p-6 border border-stone-200 shadow-xl">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-medium text-stone-800 mb-4">📋 智能任务</h2>
+                <div className="text-xs text-stone-500">
+                  {smartEntries.length} 个智能条目
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                {smartEntries.map(entry => (
+                  <SmartTaskItem
+                    key={entry.id}
+                    entry={entry}
+                    isExpanded={expandedTask === entry.id}
+                    onToggleExpand={() => setExpandedTask(expandedTask === entry.id ? null : entry.id)}
+                  />
+                ))}
+                
+                {smartEntries.length === 0 && (
+                  <div className="text-center py-12 text-stone-400">
+                    <Brain size={32} className="mx-auto mb-4 opacity-50" />
+                    <p className="text-sm">还没有智能任务，开始输入第一个想法吧！</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* 知识连接图谱 */}
-        <div className="space-y-6">
-          <div className="bg-slate-500 rounded-2xl p-6 text-white">
-            <h3 className="text-lg font-medium mb-4 flex items-center">
-              <Lightbulb className="mr-2" size={20} />
-              🔗 知识连接
-            </h3>
-            
-            <div className="space-y-3 max-h-80 overflow-y-auto">
-              {connections.map(connection => {
-                const fromEntry = smartEntries.find(e => e.id === connection.from);
-                const toEntry = smartEntries.find(e => e.id === connection.to);
-                
-                return (
-                  <div key={connection.id} className="bg-white/20 rounded-xl p-3 border border-white/10">
-                    <div className="text-xs opacity-75 mb-1">
-                      {connection.type === 'strong' ? '🔥 强关联' : '💡 弱关联'}
+          {/* 右侧：Knowledge / Drafts / Skills */}
+          <div className="space-y-6">
+            <div className="bg-slate-500 rounded-2xl p-6 text-white">
+              <h3 className="text-lg font-medium mb-4 flex items-center">
+                <Lightbulb className="mr-2" size={20} />
+                🔗 知识连接
+              </h3>
+
+              <div className="space-y-3 max-h-56 overflow-y-auto">
+                {connections.map(connection => {
+                  const fromEntry = smartEntries.find(e => e.id === connection.from);
+                  const toEntry = smartEntries.find(e => e.id === connection.to);
+                  return (
+                    <div key={connection.id} className="bg-white/20 rounded-xl p-3 border border-white/10">
+                      <div className="text-xs opacity-75 mb-1">
+                        {connection.type === 'strong' ? '🔥 强关联' : '💡 弱关联'}
+                      </div>
+                      <div className="text-sm font-medium mb-2">
+                        {fromEntry?.cleanText.slice(0, 20)}...
+                        <br />↓
+                        <br />{toEntry?.cleanText.slice(0, 20)}...
+                      </div>
+                      <div className="text-xs opacity-75">
+                        {connection.reasons.slice(0, 2).join(' • ')}
+                      </div>
                     </div>
-                    <div className="text-sm font-medium mb-2">
-                      {fromEntry?.cleanText.slice(0, 20)}...
-                      <br />↓
-                      <br />{toEntry?.cleanText.slice(0, 20)}...
+                  );
+                })}
+
+                {connections.length === 0 && (
+                  <div className="text-center py-6 opacity-75">
+                    <p className="text-sm">添加更多任务后会自动发现连接</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Drafts 面板 */}
+            <div className="bg-white rounded-2xl p-6 border border-stone-200 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-stone-800">🗂️ Drafts</h3>
+                <div className="text-xs text-stone-500">{drafts.length}</div>
+              </div>
+
+              <div className="space-y-3 max-h-60 overflow-y-auto">
+                {drafts.map(d => (
+                  <div key={d.id} className="flex items-start justify-between p-3 rounded-lg border border-stone-100">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-stone-800 truncate">{d.cleanText}</div>
+                      <div className="text-xs text-stone-500 mt-1">
+                        {d.category} · {d.priority}{d.dueDate ? ` · ${d.dueDate.toLocaleDateString()}` : ''}
+                      </div>
                     </div>
-                    <div className="text-xs opacity-75">
-                      {connection.reasons.slice(0, 2).join(' • ')}
+
+                    <div className="flex items-center gap-2 ml-4">
+                      <button
+                        onClick={() => promoteDraftToTask(d)}
+                        className="text-sm bg-slate-600 text-white px-3 py-1 rounded-md hover:opacity-90"
+                      >
+                        Promote
+                      </button>
+                      <button
+                        onClick={() => removeDraft(d.id)}
+                        className="text-sm text-stone-500 px-2 py-1 rounded-md hover:text-stone-700"
+                      >
+                        Delete
+                      </button>
                     </div>
                   </div>
-                );
-              })}
-              
-              {connections.length === 0 && (
-                <div className="text-center py-6 opacity-75">
-                  <p className="text-sm">添加更多任务后会自动发现连接</p>
-                </div>
-              )}
-            </div>
-          </div>
+                ))}
 
-          {/* 技能树 */}
-          <div className="bg-white rounded-2xl p-6 border border-stone-200 shadow-sm">
-            <h3 className="text-lg font-medium text-stone-800 mb-4">🌟 技能发现</h3>
-            <div className="space-y-3">
-              {[...new Set(smartEntries.flatMap(entry => entry.entities.tools))].map(skill => (
-                <div key={skill} className="flex items-center justify-between">
-                  <span className="text-sm text-stone-700">{skill}</span>
-                  <span className="text-xs px-2 py-1 bg-stone-100 text-stone-600 rounded-full">
-                    {smartEntries.filter(entry => entry.entities.tools.includes(skill)).length}
-                  </span>
-                </div>
-              ))}
-              
-              {smartEntries.flatMap(entry => entry.entities.tools).length === 0 && (
-                <div className="text-center py-6 text-stone-400">
-                  <p className="text-sm">添加包含技能的任务后会自动识别</p>
-                </div>
-              )}
+                {drafts.length === 0 && (
+                  <div className="text-center py-6 text-stone-400">
+                    <p className="text-sm">没有草稿</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 技能树 */}
+            <div className="bg-white rounded-2xl p-6 border border-stone-200 shadow-sm">
+              <h3 className="text-lg font-medium text-stone-800 mb-4">🌟 技能发现</h3>
+              <div className="space-y-3">
+                {[...new Set(smartEntries.flatMap(entry => entry.entities.tools || []))].map(skill => (
+                  <div key={skill} className="flex items-center justify-between">
+                    <span className="text-sm text-stone-700">{skill}</span>
+                    <span className="text-xs px-2 py-1 bg-stone-100 text-stone-600 rounded-full">
+                      {smartEntries.filter(entry => (entry.entities.tools || []).includes(skill)).length}
+                    </span>
+                  </div>
+                ))}
+
+                {smartEntries.flatMap(entry => entry.entities.tools || []).length === 0 && (
+                  <div className="text-center py-6 text-stone-400">
+                    <p className="text-sm">添加包含技能的任务后会自动识别</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // 智能任务项组件
   const SmartTaskItem = ({ entry, isExpanded, onToggleExpand }) => {

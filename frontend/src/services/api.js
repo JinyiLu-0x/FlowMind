@@ -1,8 +1,13 @@
 import axios from 'axios';
 
+// 在开发用 Vite 代理，在生产用环境变量指定后端地址
+const apiBase = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE
+  ? import.meta.env.VITE_API_BASE
+  : '/api';
+
 // 统一的 Axios 实例
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: apiBase,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json'

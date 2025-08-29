@@ -5,7 +5,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import mongoSanitize from 'express-mongo-sanitize';
+// import mongoSanitize from 'express-mongo-sanitize';
 import cookieParser from 'cookie-parser';
 
 // 路由导入
@@ -23,7 +23,25 @@ const app = express();
 
 // 安全中间件
 app.use(helmet());
-app.use(mongoSanitize());
+// 自定义 sanitize（仅处理 body 与 params，避免在 Express 5 下重写 req.query）
+const sanitizeValue = (value) => {
+  if (value && typeof value === 'object') {
+    const result = Array.isArray(value) ? [] : {};
+    for (const key of Object.keys(value)) {
+      // 移除以 $ 开头或包含 . 的键，防止 NoSQL 注入
+      if (key.startsWith('$') || key.includes('.')) continue;
+      result[key] = sanitizeValue(value[key]);
+    }
+    return result;
+  }
+  return value;
+};
+app.use((req, res, next) => {
+  if (req.body) req.body = sanitizeValue(req.body);
+  if (req.params) req.params = sanitizeValue(req.params);
+  // 不触碰 req.query，避免只读属性被重写
+  next();
+});
 
 // 限速器
 const limiter = rateLimit({

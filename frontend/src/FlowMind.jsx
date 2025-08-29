@@ -91,12 +91,32 @@ const FlowMind = () => {
 
   // 登录处理
   const handleLogin = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     setAuthLoading(true);
     setAuthError('');
 
     try {
       const response = await authService.login(loginForm);
+      setUser(response.user);
+      setIsAuthenticated(true);
+      setCurrentView('dashboard');
+      await loadUserData();
+    } catch (error) {
+      setAuthError(error.message);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  // 使用 ref 的登录（避免受控输入导致的输入卡顿/只录入一个字符等问题）
+  const handleLoginWithRefs = async () => {
+    setAuthLoading(true);
+    setAuthError('');
+
+    try {
+      const emailOrUsername = usernameRef.current ? usernameRef.current.value : '';
+      const password = passwordRef.current ? passwordRef.current.value : '';
+      const response = await authService.login({ emailOrUsername, password });
       setUser(response.user);
       setIsAuthenticated(true);
       setCurrentView('dashboard');
@@ -617,20 +637,18 @@ const FlowMind = () => {
             <p className="text-sm text-stone-500 dark:text-stone-300 mt-1">Intelligent Task Management</p>
           </div>
 
-          <form className="space-y-4" onSubmit={handleLogin}>
+          <div className="space-y-4">
             <input
               type="text"
               placeholder="Email or Username"
-              value={loginForm.emailOrUsername}
-              onChange={(e) => setLoginForm(prev => ({ ...prev, emailOrUsername: e.target.value }))}
+              ref={usernameRef}
               autoComplete="username"
               className="w-full px-4 py-3 bg-stone-50 dark:bg-transparent border border-stone-200 dark:border-stone-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-400 transition-colors text-stone-700 dark:text-stone-100"
             />
             <input
               type="password"
               placeholder="Password"
-              value={loginForm.password}
-              onChange={(e) => setLoginForm(prev => ({ ...prev, password: e.target.value }))}
+              ref={passwordRef}
               autoComplete="current-password"
               className="w-full px-4 py-3 bg-stone-50 dark:bg-transparent border border-stone-200 dark:border-stone-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-400 transition-colors text-stone-700 dark:text-stone-100"
             />
@@ -638,13 +656,13 @@ const FlowMind = () => {
               <div className="text-sm text-red-500">{authError}</div>
             )}
             <button
-              type="submit"
+              onClick={handleLoginWithRefs}
               disabled={authLoading}
               className="w-full bg-slate-600 text-white py-3 rounded-xl font-medium hover:scale-105 hover:shadow-lg transition-transform disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {authLoading ? 'Signing in...' : 'Sign In'}
             </button>
-          </form>
+          </div>
         </Card>
       </div>
     </div>

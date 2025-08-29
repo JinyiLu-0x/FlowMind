@@ -1,5 +1,10 @@
+// FlowMind.jsx - 集成认证功能
 import React, { useState, useEffect, useRef } from 'react';
-import { Calendar, Plus, User, Brain, Clock, Tag, Trash2, Edit3, CheckCircle, Circle, Lightbulb, FileText, Settings, ChevronDown } from 'lucide-react';
+import { Calendar, Plus, User, Brain, Clock, Tag, Trash2, Edit3, CheckCircle, Circle, Lightbulb, FileText, Settings, ChevronDown, LogOut, Mail, Lock } from 'lucide-react';
+
+// 导入认证服务
+import { authService } from './services/authService';
+import api from './services/api';
 
 // 在文件顶部（组件外或组件内最上方）添加统一的 emoji 配置，便于全局替换
 const LOGO_PATH = '/logo.png'; // 你可改为 '🪄' / '⚡️' / '🌿' 等更好看的 emoji
@@ -13,21 +18,129 @@ const TAG_EMOJI_CHOICES = {
 };
 
 const FlowMind = () => {
-  // 状态管理
+  // 认证状态
   const [user, setUser] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authError, setAuthError] = useState('');
+  
+  // 原有状态
   const [tasks, setTasks] = useState([]);
   const [ideas, setIdeas] = useState([]);
   const [smartEntries, setSmartEntries] = useState([]); // 智能条目存储
   const [connections, setConnections] = useState([]); // 知识连接
   const [drafts, setDrafts] = useState([]); // 未直接转为任务的想法草稿
-  const [currentView, setCurrentView] = useState('login');
+  const [currentView, setCurrentView] = useState('login'); // 默认显示登录页
   const [selectedDate, setSelectedDate] = useState('');
   const [expandedTask, setExpandedTask] = useState(null);
+  
+  // 表单状态
+  const [loginForm, setLoginForm] = useState({ emailOrUsername: '', password: '' });
+  const [registerForm, setRegisterForm] = useState({ 
+    username: '', 
+    email: '', 
+    password: '', 
+    confirmPassword: '' 
+  });
+  
   const usernameRef = useRef(null);
   const passwordRef = useRef(null);
   const taskInputRef = useRef(null);
   const ideaInputRef = useRef(null);
 
+  // 检查用户登录状态
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        if (authService.isAuthenticated()) {
+          const userData = await authService.getCurrentUser();
+          setUser(userData);
+          setIsAuthenticated(true);
+          setCurrentView('dashboard');
+          // 加载用户数据
+          await loadUserData();
+        }
+      } catch (error) {
+        console.error('认证检查失败:', error);
+        authService.logout();
+      } finally {
+        setAuthLoading(false);
+      }
+    };
+
+    checkAuth();
+  }, []);
+
+  // 加载用户数据
+  const loadUserData = async () => {
+    try {
+      // 这里你可以调用API获取用户的任务和想法
+      // const response = await api.get('/users/data');
+      // setTasks(response.data.tasks || []);
+      // setIdeas(response.data.ideas || []);
+      
+      // 暂时从localStorage加载
+      const savedTasks = localStorage.getItem('flowmind_tasks');
+      const savedIdeas = localStorage.getItem('flowmind_ideas');
+      if (savedTasks) setTasks(JSON.parse(savedTasks));
+      if (savedIdeas) setIdeas(JSON.parse(savedIdeas));
+    } catch (error) {
+      console.error('加载用户数据失败:', error);
+    }
+  };
+
+  // 登录处理
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setAuthLoading(true);
+    setAuthError('');
+
+    try {
+      const response = await authService.login(loginForm);
+      setUser(response.user);
+      setIsAuthenticated(true);
+      setCurrentView('dashboard');
+      await loadUserData();
+    } catch (error) {
+      setAuthError(error.message);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  // 注册处理
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setAuthLoading(true);
+    setAuthError('');
+
+    try {
+      const response = await authService.register(registerForm);
+      setUser(response.user);
+      setIsAuthenticated(true);
+      setCurrentView('dashboard');
+    } catch (error) {
+      setAuthError(error.message);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  // 登出处理
+  const handleLogout = async () => {
+    try {
+      await authService.logout();
+      setUser(null);
+      setIsAuthenticated(false);
+      setCurrentView('login');
+      setTasks([]);
+      setIdeas([]);
+      setSmartEntries([]);
+    } catch (error) {
+      console.error('登出失败:', error);
+    }
+  };
+  
   // 任务标签 - 莫兰迪色系（保留 emoji/名称）
   const taskTags = [
     { id: 'personal', name: `${TAG_EMOJI_CHOICES.personal} Personal`, color: 'text-slate-600', bg: 'bg-slate-100' },
@@ -504,32 +617,34 @@ const FlowMind = () => {
             <p className="text-sm text-stone-500 dark:text-stone-300 mt-1">Intelligent Task Management</p>
           </div>
 
-          <div className="space-y-4">
+          <form className="space-y-4" onSubmit={handleLogin}>
             <input
               type="text"
-              placeholder="Username"
-              ref={usernameRef}
+              placeholder="Email or Username"
+              value={loginForm.emailOrUsername}
+              onChange={(e) => setLoginForm(prev => ({ ...prev, emailOrUsername: e.target.value }))}
               autoComplete="username"
               className="w-full px-4 py-3 bg-stone-50 dark:bg-transparent border border-stone-200 dark:border-stone-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-400 transition-colors text-stone-700 dark:text-stone-100"
             />
             <input
               type="password"
               placeholder="Password"
-              ref={passwordRef}
+              value={loginForm.password}
+              onChange={(e) => setLoginForm(prev => ({ ...prev, password: e.target.value }))}
               autoComplete="current-password"
               className="w-full px-4 py-3 bg-stone-50 dark:bg-transparent border border-stone-200 dark:border-stone-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-400 transition-colors text-stone-700 dark:text-stone-100"
             />
+            {authError && (
+              <div className="text-sm text-red-500">{authError}</div>
+            )}
             <button
-              onClick={() => {
-                const name = usernameRef.current ? usernameRef.current.value : '';
-                setUser({ name: name || 'User', id: 1 });
-                setCurrentView('dashboard');
-              }}
-              className="w-full bg-slate-600 text-white py-3 rounded-xl font-medium hover:scale-105 hover:shadow-lg transition-transform"
+              type="submit"
+              disabled={authLoading}
+              className="w-full bg-slate-600 text-white py-3 rounded-xl font-medium hover:scale-105 hover:shadow-lg transition-transform disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Sign In
+              {authLoading ? 'Signing in...' : 'Sign In'}
             </button>
-          </div>
+          </form>
         </Card>
       </div>
     </div>

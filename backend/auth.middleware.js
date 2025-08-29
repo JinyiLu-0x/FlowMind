@@ -1,6 +1,6 @@
 // middleware/auth.middleware.js
 import jwt from 'jsonwebtoken';
-import User from '../models/User.model.js';
+import User from './models/User.model.js';
 
 // 保护路由 - 验证用户登录状态
 export const protect = async (req, res, next) => {

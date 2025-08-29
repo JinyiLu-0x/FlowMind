@@ -36,5 +36,8 @@ export const Lightbulb = make('💡');
 export const FileText = make('📄');
 export const Settings = make('⚙️');
 export const ChevronDown = make('▾');
+export const LogOut = make('🚪');
+export const Mail = make('✉️');
+export const Lock = make('🔒');
 
 export default {};

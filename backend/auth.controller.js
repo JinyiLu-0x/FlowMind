@@ -1,9 +1,9 @@
 // controllers/auth.controller.js
-import User from '../models/User.model.js';
+import User from './models/User.model.js';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import { sendEmail } from '../utils/email.js';
-import { validateEmail, validatePassword } from '../utils/validators.js';
+import { sendEmail } from './utils/email.js';
+import { validateEmail, validatePassword } from './utils/validators.js';
 
 // 生成JWT令牌
 const generateToken = (id) => {

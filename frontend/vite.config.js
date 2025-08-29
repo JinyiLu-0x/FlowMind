@@ -10,4 +10,14 @@ export default defineConfig({
       'lucide-react': path.resolve(__dirname, 'src/lucide-react.jsx'),
     },
   },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5050',
+        changeOrigin: true,
+        secure: false,
+        // 不强制覆盖 Origin，避免 Vite 随机端口导致不一致
+      }
+    }
+  }
 });

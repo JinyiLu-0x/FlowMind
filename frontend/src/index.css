@@ -1,0 +1,108 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Morandi palette + stronger glass hovering effect */
+:root{
+  --m-bg: #efefe9;
+  --m-surface: #eeebe7;
+  --m-card: #f6f4f2;
+  --m-accent: #8c9aa4;
+  --m-muted: #7d7b77;
+  --m-fore: #2f3230;
+  --m-border: rgba(47,50,49,0.06);
+}
+
+/* dark overrides */
+.dark {
+  --m-bg: #0f1112;
+  --m-surface: #0b0d0e;
+  --m-card: #0b1012;
+  --m-accent: #8c9aa4;
+  --m-muted: #9aa0a2;
+  --m-fore: #e8eef0;
+  --m-border: rgba(255,255,255,0.04);
+}
+
+/* semantically named helpers */
+.bg-morandi { background-color: var(--m-bg) !important; color: var(--m-fore); }
+
+/* card: stronger translucency + blur for glass feeling */
+.card-morandi {
+  background-color: rgba(255,255,255,0.48); /* 更透明 */
+  color: var(--m-fore);
+  border: 1px solid rgba(47,50,49,0.06);
+  transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 10px 30px rgba(20,24,28,0.08);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+/* dark variant keep translucency */
+.dark .card-morandi {
+  background-color: rgba(11,16,22,0.42);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+}
+
+/* glass hovering micro-effect for non-input containers */
+.glass-hover {
+  will-change: transform, box-shadow;
+}
+.glass-hover:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 22px 50px rgba(20,24,28,0.14);
+}
+
+/* nav-index style (logo + title block) */
+.nav-index {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.42);
+  border: 1px solid var(--m-border);
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.nav-index:hover { transform: translateY(-4px); box-shadow: 0 12px 30px rgba(20,24,28,0.08); }
+
+/* ensure inputs/textareas are NOT affected by backdrop-filter (避免 IME 问题) */
+.card-morandi input,
+.card-morandi textarea,
+.surface-morandi input,
+.surface-morandi textarea {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  transform: none !important;
+}
+
+/* small button variant */
+.btn-morandi {
+  background-color: var(--m-accent);
+  color: white;
+  border-radius: 12px;
+  padding: 8px 12px;
+}
+
+/* tag / chip */
+.chip {
+  background: rgba(0,0,0,0.04);
+  color: var(--m-muted);
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+/* helper to place an inline emoji nicely (可用于 logo 或标签) */
+.emoji-inline {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:20px;height:20px;font-size:14px;
+}
+
+/* keep full-bleed background controlled by app */
+html, body, #root { height: 100%; background: transparent; }
+body { margin: 0; }
